@@ -7,7 +7,7 @@ import com.le.agent.common.dto.StartSessionRequest;
 import com.le.agent.common.dto.StartSessionResponse;
 import com.le.agent.common.enums.LevelEnum;
 import com.le.agent.service.email.EmailSendEvent;
-import com.le.agent.service.orchestrator.AgentOrchestrator;
+import com.le.agent.service.graph.GraphExecutorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Agent 框架 REST 接口.
  *
- * <p>所有方法均返回 {@link ApiResponse}，不写业务逻辑，仅调用 {@link AgentOrchestrator}.</p>
+ * <p>所有方法均返回 {@link ApiResponse}，不写业务逻辑，仅调用 {@link GraphExecutorService}.</p>
  */
 @Slf4j
 @RestController
@@ -31,7 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AgentController {
 
-	private final AgentOrchestrator agentOrchestrator;
+	private final GraphExecutorService graphExecutorService;
 	private final ApplicationEventPublisher eventPublisher;
 
 	/**
@@ -40,7 +40,7 @@ public class AgentController {
 	@PostMapping("/start")
 	public ApiResponse<StartSessionResponse> start(@RequestBody StartSessionRequest request) {
 		log.info("[AgentController] /start topic={}, level={}", request.getTopic(), request.getLevel());
-		StartSessionResponse resp = agentOrchestrator.start(
+		StartSessionResponse resp = graphExecutorService.start(
 				request.getSessionId(),
 				request.getTopic(),
 				request.getLevel(),
@@ -56,7 +56,7 @@ public class AgentController {
 	public ApiResponse<StartSessionResponse> human(@RequestBody HumanDecisionRequest request) {
 		log.info("[AgentController] /human sessionId={}, runId={}, decision={}",
 				request.getSessionId(), request.getRunId(), request.getDecision());
-		StartSessionResponse resp = agentOrchestrator.human(
+		StartSessionResponse resp = graphExecutorService.human(
 				request.getSessionId(),
 				request.getRunId(),
 				request.getDecision(),
@@ -70,7 +70,7 @@ public class AgentController {
 	@PostMapping("/continue")
 	public ApiResponse<StartSessionResponse> continueSession(@RequestBody StartSessionRequest request) {
 		log.info("[AgentController] /continue sessionId={}, topic={}", request.getSessionId(), request.getTopic());
-		StartSessionResponse resp = agentOrchestrator.continueSession(request.getSessionId(), request.getTopic());
+		StartSessionResponse resp = graphExecutorService.continueSession(request.getSessionId(), request.getTopic());
 		return ApiResponse.success(resp);
 	}
 
@@ -79,7 +79,7 @@ public class AgentController {
 	 */
 	@GetMapping("/history/{sessionId}")
 	public ApiResponse<List<QaContent>> history(@PathVariable String sessionId) {
-		return ApiResponse.success(agentOrchestrator.history(sessionId));
+		return ApiResponse.success(graphExecutorService.history(sessionId));
 	}
 
 	/**
@@ -87,7 +87,7 @@ public class AgentController {
 	 */
 	@PostMapping("/email/retry/{sessionId}")
 	public ApiResponse<String> retryEmail(@PathVariable String sessionId) {
-		List<QaContent> history = agentOrchestrator.history(sessionId);
+		List<QaContent> history = graphExecutorService.history(sessionId);
 		if (history.isEmpty()) {
 			return ApiResponse.fail(4003, "未找到该 session 的历史 Q&A，无法重试邮件");
 		}

@@ -17,6 +17,18 @@ spring:
           model: glm-4.7
           temperature: 0.5
 
+    # ========== DashScope 配置（模型 + WebSearch） ==========
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/api/v1
+      chat:
+        options:
+          model: qwen-plus
+          temperature: 0.7
+      web-search:
+        app-id: ${DASHSCOPE_WEBSEARCH_APP_ID:}
+        enabled: true
+
   # ========== Chat Memory（Redis 持久化） ==========
   data:
     redis:

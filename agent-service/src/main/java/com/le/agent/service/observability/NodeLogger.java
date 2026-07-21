@@ -4,7 +4,7 @@ import com.le.agent.common.api.TraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 
-import java.util.function.Supplier;
+import java.util.concurrent.Callable;
 
 /**
  * 节点日志工具.
@@ -48,16 +48,19 @@ public final class NodeLogger {
 	/**
 	 * 包裹节点执行：进入/退出日志 + 耗时统计.
 	 */
-	public static <T> T wrap(String nodeId, String sessionId, Supplier<T> action) {
+	public static <T> T wrap(String nodeId, String sessionId, Callable<T> action) {
 		long start = System.currentTimeMillis();
 		enter(nodeId, sessionId);
 		try {
-			T result = action.get();
+			T result = action.call();
 			exit(nodeId, sessionId, System.currentTimeMillis() - start);
 			return result;
 		} catch (RuntimeException re) {
 			exitWithError(nodeId, sessionId, System.currentTimeMillis() - start, re);
 			throw re;
+		} catch (Exception e) {
+			exitWithError(nodeId, sessionId, System.currentTimeMillis() - start, e);
+			throw new RuntimeException(e);
 		}
 	}
 }

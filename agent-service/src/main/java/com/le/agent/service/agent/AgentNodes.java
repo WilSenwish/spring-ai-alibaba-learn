@@ -1,23 +1,19 @@
 package com.le.agent.service.agent;
 
-import com.le.agent.common.dto.AnswerItem;
-import com.le.agent.common.dto.QuestionItem;
-import com.le.agent.common.dto.ReviewItem;
+import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.le.agent.common.enums.LevelEnum;
 import com.le.agent.service.agent.prompt.SystemPrompts;
+import com.le.agent.service.tool.WebSearchTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * Agent 节点执行器 - 实现 9 个分级节点的核心调用.
- *
- * <p>每个方法封装一次 LLM 调用 + 解析；orchestrator 在 Graph 中按 level 路由到对应方法.</p>
+ * Agent 节点工厂 - 提供 ReactAgent 构建方法.
  */
 @Slf4j
 @Component
@@ -25,92 +21,35 @@ import java.util.stream.Collectors;
 public class AgentNodes {
 
 	private final LlmInvoker llmInvoker;
+	private final ObjectMapper objectMapper;
+	private final ChatClient.Builder chatClientBuilder;
+	private final WebSearchTool webSearchTool;
 
-	// ================== Question 节点 ==================
-
-	public QuestionItem doQuestionJunior(String topic) {
-		return doQuestion(LevelEnum.JUNIOR, topic);
-	}
-
-	public QuestionItem doQuestionMid(String topic) {
-		return doQuestion(LevelEnum.MID, topic);
-	}
-
-	public QuestionItem doQuestionSenior(String topic) {
-		return doQuestion(LevelEnum.SENIOR, topic);
-	}
-
-	private QuestionItem doQuestion(LevelEnum level, String topic) {
-		String prompt = String.format(SystemPrompts.questionPrompt(level), topic);
-		Map<String, Object> map = llmInvoker.callJson("你是一位结构化输出的助手，请仅输出 JSON。", prompt);
-		String content = stringOrDefault(map, "content", "请介绍一下 " + topic);
-		@SuppressWarnings("unchecked")
-		List<Object> rawTags = (List<Object>) map.getOrDefault("tags", Collections.emptyList());
-		List<String> tags = rawTags.stream().map(String::valueOf).collect(Collectors.toList());
-		return QuestionItem.builder()
-				.content(content)
-				.difficulty(level)
-				.tags(tags)
+	public ReactAgent buildQuestionAgent(LevelEnum level, String topic) {
+		return ReactAgent.builder()
+				.name("QUESTION_AGENT_" + level.name())
+				.systemPrompt(String.format(SystemPrompts.questionPrompt(level), topic))
+				.chatClient(chatClientBuilder.build())
+				.outputKey("question")
 				.build();
 	}
 
-	// ================== Answer 节点 ==================
-
-	public AnswerItem doAnswerJunior(String question, String feedback, int revision) {
-		return doAnswer(LevelEnum.JUNIOR, question, feedback, revision);
-	}
-
-	public AnswerItem doAnswerMid(String question, String feedback, int revision) {
-		return doAnswer(LevelEnum.MID, question, feedback, revision);
-	}
-
-	public AnswerItem doAnswerSenior(String question, String feedback, int revision) {
-		return doAnswer(LevelEnum.SENIOR, question, feedback, revision);
-	}
-
-	private AnswerItem doAnswer(LevelEnum level, String question, String feedback, int revision) {
-		String prompt = String.format(
-				SystemPrompts.answerPrompt(level),
-				question,
-				SystemPrompts.feedbackSection(feedback));
-		Map<String, Object> map = llmInvoker.callJson("你是一位结构化输出的助手，请仅输出 JSON。", prompt);
-		String content = stringOrDefault(map, "content", "（AI 未给出答案）");
-		@SuppressWarnings("unchecked")
-		List<Object> rawPoints = (List<Object>) map.getOrDefault("keyPoints", Collections.emptyList());
-		List<String> keyPoints = rawPoints.stream().map(String::valueOf).collect(Collectors.toList());
-		String sampleCode = stringOrDefault(map, "sampleCode", "");
-		return AnswerItem.builder()
-				.content(content)
-				.keyPoints(keyPoints)
-				.sampleCode(sampleCode)
-				.revision(revision)
+	public ReactAgent buildAnswerAgent(LevelEnum level, String question, String feedback) {
+		return ReactAgent.builder()
+				.name("ANSWER_AGENT_" + level.name())
+				.systemPrompt(String.format(SystemPrompts.answerPrompt(level), question, SystemPrompts.feedbackSection(feedback)))
+				.chatClient(chatClientBuilder.build())
+				.methodTools(webSearchTool)
+				.outputKey("answer")
 				.build();
 	}
 
-	// ================== Review 节点 ==================
-
-	public ReviewItem doReviewJunior(String question, String answer) {
-		return doReview(LevelEnum.JUNIOR, question, answer);
-	}
-
-	public ReviewItem doReviewMid(String question, String answer) {
-		return doReview(LevelEnum.MID, question, answer);
-	}
-
-	public ReviewItem doReviewSenior(String question, String answer) {
-		return doReview(LevelEnum.SENIOR, question, answer);
-	}
-
-	private ReviewItem doReview(LevelEnum level, String question, String answer) {
-		String prompt = String.format(SystemPrompts.reviewPrompt(level), question, answer);
-		Map<String, Object> map = llmInvoker.callJson("你是一位结构化输出的助手，请仅输出 JSON。", prompt);
-		boolean approved = Boolean.TRUE.equals(map.get("approved"));
-		String comments = stringOrDefault(map, "comments", "");
-		String revisionHint = stringOrDefault(map, "revisionHint", "");
-		return ReviewItem.builder()
-				.approved(approved)
-				.comments(comments)
-				.revisionHint(revisionHint)
+	public ReactAgent buildReviewAgent(LevelEnum level, String question, String answer) {
+		return ReactAgent.builder()
+				.name("REVIEW_AGENT_" + level.name())
+				.systemPrompt(String.format(SystemPrompts.reviewPrompt(level), question, answer))
+				.chatClient(chatClientBuilder.build())
+				.outputKey("review")
 				.build();
 	}
 

@@ -31,6 +31,12 @@
 			<artifactId>spring-ai-starter-model-zhipuai</artifactId>
 		</dependency>
 
+		<!-- Spring AI Alibaba DashScope（模型 + WebSearch） -->
+		<dependency>
+			<groupId>com.alibaba.cloud.ai</groupId>
+			<artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+		</dependency>
+
 		<!-- Chat Memory (Redis 持久化) -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
