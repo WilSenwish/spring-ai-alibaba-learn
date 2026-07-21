@@ -56,6 +56,13 @@
 			<version>3.22.0</version>
 		</dependency>
 
+		<!-- 智谱官方 SDK（用于 Web Search API） -->
+		<dependency>
+			<groupId>ai.z.openapi</groupId>
+			<artifactId>zai-sdk</artifactId>
+			<version>0.3.5</version>
+		</dependency>
+
 		<!-- Spring Boot Mail -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

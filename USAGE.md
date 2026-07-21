@@ -37,6 +37,12 @@ agent:
   memory:
     history-prefix: agent:history:  # 历史记录 key 前缀
     max-history-size: 50     # 最大历史记录数
+  search:
+    engine: zhipu-search-pro  # 默认搜索引擎，可选：dashscope-web-search
+    zhipu:
+      count: 10               # 返回结果条数，范围 1-50
+      content-size: medium    # 摘要长度：low/medium/high
+      recency-filter: noLimit # 时间范围过滤
 
 # 邮件配置（可选）
   mail:
@@ -305,6 +311,42 @@ curl -X POST http://localhost:8080/api/v1/agent/stream/human \
 [tool-call] traceId=xxx, sessionId=xxx, toolName=webSearch, toolCallId=xxx, arguments=50 chars
 [tool-response] traceId=xxx, sessionId=xxx, toolName=webSearch, toolCallId=xxx, costMs=500, status=success, isError=false
 ```
+
+## 6. 搜索引擎说明
+
+项目支持两种网络搜索引擎，可通过 `agent.search.engine` 配置切换：
+
+| 引擎 | 配置值 | 说明 |
+|------|--------|------|
+| 智谱 search_pro | `zhipu-search-pro` | 默认，使用智谱官方 Web Search API，返回结构化结果（标题/链接/摘要/来源/发布日期） |
+| DashScope Web Search | `dashscope-web-search` | 使用 DashScope completions 接口启用 web_search 工具，返回 LLM 总结内容 |
+
+### 6.1 切换搜索引擎示例
+
+```yaml
+agent:
+  search:
+    engine: dashscope-web-search
+```
+
+### 6.2 智谱搜索高级配置
+
+```yaml
+agent:
+  search:
+    engine: zhipu-search-pro
+    zhipu:
+      count: 15
+      content-size: high
+      recency-filter: oneWeek
+```
+
+`recency-filter` 可选值：
+- `noLimit`：不限时间
+- `oneDay`：一天内
+- `oneWeek`：一周内
+- `oneMonth`：一月内
+- `oneYear`：一年内
 
 ## 7. 故障排查
 
