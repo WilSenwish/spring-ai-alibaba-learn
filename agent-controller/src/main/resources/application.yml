@@ -1,0 +1,84 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: spring-ai-alibaba-learn
+
+  # ========== 智谱 AI 配置 ==========
+  ai:
+    zhipuai:
+      api-key: ${ZHIPUAI_API_KEY:}
+      base-url: https://open.bigmodel.cn/api/paas/v4
+      chat:
+        options:
+          model: glm-4.7
+          temperature: 0.5
+
+  # ========== Chat Memory（Redis 持久化） ==========
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 5s
+
+  ai.chat.memory.redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: ${REDIS_DB:0}
+    key-prefix: "agent:chat:"
+
+  # ========== Spring Mail 配置 ==========
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+            trust: ${MAIL_HOST:smtp.qq.com}
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+  # ========== 线程池（邮件异步） ==========
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 16
+        queue-capacity: 200
+        thread-name-prefix: agent-async-
+
+# ========== 自定义应用配置 ==========
+agent:
+  email:
+    from: ${MAIL_FROM:no-reply@example.com}
+    subject-prefix: "[面试学习]"
+  orchestrator:
+    max-revise-count: 5
+  memory:
+    history-prefix: "agent:history:"
+    max-history-size: 50
+
+logging:
+  level:
+    root: INFO
+    com.le.agent: DEBUG
+    org.springframework.ai: INFO
+    com.alibaba.cloud.ai: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [traceId=%X{traceId:-}] %-5level %logger{36} - %msg%n"
