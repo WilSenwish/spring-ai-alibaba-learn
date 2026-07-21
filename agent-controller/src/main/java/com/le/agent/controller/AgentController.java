@@ -128,9 +128,4 @@ public class AgentController {
 				request.getDecision(),
 				request.getFeedback());
 	}
-
-	@SuppressWarnings("unused")
-	private LevelEnum parseLevel(String s) {
-		return s == null ? null : LevelEnum.of(s);
-	}
 }

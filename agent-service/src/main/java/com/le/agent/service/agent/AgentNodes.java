@@ -1,9 +1,6 @@
 package com.le.agent.service.agent;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
-import com.alibaba.cloud.ai.graph.agent.hook.Hook;
-import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.le.agent.common.enums.LevelEnum;
 import com.le.agent.service.agent.prompt.SystemPrompts;
 import com.le.agent.service.observability.LoggerHook;
@@ -16,7 +13,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * Agent 节点工厂 - 提供 ReactAgent 构建方法.
@@ -26,8 +22,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AgentNodes {
 
-	private final LlmInvoker llmInvoker;
-	private final ObjectMapper objectMapper;
 	private final ChatClient.Builder chatClientBuilder;
 	private final WebSearchTool webSearchTool;
 
@@ -63,10 +57,5 @@ public class AgentNodes {
 				.hooks(Arrays.asList(new LoggerHook()))
 				.interceptors(Arrays.asList(new ModelLoggingInterceptor()))
 				.build();
-	}
-
-	private String stringOrDefault(Map<String, Object> map, String key, String def) {
-		Object v = map.get(key);
-		return v == null ? def : v.toString();
 	}
 }

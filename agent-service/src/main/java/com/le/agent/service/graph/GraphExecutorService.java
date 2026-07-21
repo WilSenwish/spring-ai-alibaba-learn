@@ -7,7 +7,7 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.state.StateSnapshot;
 import com.alibaba.cloud.ai.graph.store.StoreItem;
-import com.alibaba.cloud.ai.graph.store.stores.RedisStore;
+import com.le.agent.service.store.RedissonStore;
 import reactor.core.publisher.Flux;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.le.agent.common.api.TraceContext;
@@ -45,14 +45,11 @@ public class GraphExecutorService {
 
 	private final CompiledGraph compiledGraph;
 	private final ObjectMapper objectMapper;
-	private final RedisStore redisStore;
+	private final RedissonStore redissonStore;
 	private final SessionHistoryService sessionHistoryService;
 
 	@Value("${agent.orchestrator.max-revise-count:5}")
 	private int maxReviseCount;
-
-	@Value("${agent.orchestrator.run-prefix:agent:run:}")
-	private String runPrefix;
 
 	/**
 	 * 启动新会话并驱动 Graph 执行到第一个中断点或结束.
@@ -252,14 +249,10 @@ public class GraphExecutorService {
 				.map(response -> (NodeOutput) response.getOutput().join());
 	}
 
-	private String runKey(String runId) {
-		return runPrefix + runId;
-	}
-
 	private void saveSnapshot(OverAllState state, String runId) {
 		try {
 			StoreItem item = StoreItem.of(Arrays.asList("agent", "snapshot"), runId, state.data());
-			redisStore.putItem(item);
+			redissonStore.putItem(item);
 			log.info("[GraphExecutorService] snapshot saved, runId={}", runId);
 		} catch (Exception e) {
 			log.error("[GraphExecutorService] saveSnapshot failed, runId={}", runId, e);
@@ -268,7 +261,7 @@ public class GraphExecutorService {
 
 	private Optional<OverAllState> loadSnapshot(String runId) {
 		try {
-			Optional<StoreItem> item = redisStore.getItem(Arrays.asList("agent", "snapshot"), runId);
+			Optional<StoreItem> item = redissonStore.getItem(Arrays.asList("agent", "snapshot"), runId);
 			if (item.isEmpty()) {
 				return Optional.empty();
 			}
@@ -282,7 +275,7 @@ public class GraphExecutorService {
 
 	private void deleteSnapshot(String runId) {
 		try {
-			redisStore.deleteItem(Arrays.asList("agent", "snapshot"), runId);
+			redissonStore.deleteItem(Arrays.asList("agent", "snapshot"), runId);
 		} catch (Exception e) {
 			log.error("[GraphExecutorService] deleteSnapshot failed, runId={}", runId, e);
 		}

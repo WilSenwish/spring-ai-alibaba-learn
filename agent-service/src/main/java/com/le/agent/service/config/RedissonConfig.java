@@ -1,6 +1,6 @@
 package com.le.agent.service.config;
 
-import com.alibaba.cloud.ai.graph.store.stores.RedisStore;
+import com.le.agent.service.store.RedissonStore;
 import lombok.Getter;
 import lombok.Setter;
 import org.redisson.Redisson;
@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Redisson 配置.
  *
- * <p>从 application.yml 读取 Redis 配置，创建 RedissonClient Bean 和 RedisStore Bean.</p>
+ * <p>从 application.yml 读取 Redis 配置，创建 RedissonClient Bean 和 RedissonStore Bean.</p>
  */
 @Configuration
 @ConfigurationProperties(prefix = "spring.data.redis")
@@ -40,7 +40,7 @@ public class RedissonConfig {
 	}
 
 	@Bean
-	public RedisStore redisStore() {
-		return new RedisStore();
+	public RedissonStore redissonStore(RedissonClient redissonClient) {
+		return new RedissonStore(redissonClient);
 	}
 }
