@@ -7,7 +7,7 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
-import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphStateException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.le.agent.common.constants.BizConstants;
@@ -20,9 +20,9 @@ import com.le.agent.common.exception.BizException;
 import com.le.agent.common.api.ResultCode;
 import com.le.agent.service.agent.AgentNodes;
 import com.le.agent.service.agent.LlmInvoker;
-import com.le.agent.service.observability.NodeLogger;
 import com.le.agent.service.session.SessionHistoryService;
 import lombok.RequiredArgsConstructor;
+import org.redisson.api.RedissonClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
@@ -46,6 +46,7 @@ public class InterviewGraphBuilder {
 	private final ObjectMapper objectMapper;
 	private final LlmInvoker llmInvoker;
 	private final SessionHistoryService sessionHistoryService;
+	private final RedissonClient redissonClient;
 
 	@Bean
 	public CompiledGraph interviewGraph() throws GraphStateException {
@@ -74,21 +75,18 @@ public class InterviewGraphBuilder {
 		for (LevelEnum level : LevelEnum.values()) {
 			String nodeId = "QUESTION_AGENT_" + level.name();
 			graph.addNode(nodeId, AsyncNodeAction.node_async(state -> {
-				String sessionId = state.value("sessionId", String.class).orElse("");
-				return NodeLogger.wrap(nodeId, sessionId, () -> {
-					String topic = state.value("topic", String.class).orElse("");
-					LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
-					if (lvl == null) {
-						lvl = LevelEnum.JUNIOR;
-					}
-					var agent = agentNodes.buildQuestionAgent(lvl, topic);
-					AssistantMessage msg = agent.call("主题：" + topic);
-					Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
-					QuestionItem item = objectMapper.convertValue(map, QuestionItem.class);
-					Map<String, Object> updates = new HashMap<>();
-					updates.put("question", objectMapper.convertValue(item, Map.class));
-					return updates;
-				});
+				String topic = state.value("topic", String.class).orElse("");
+				LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
+				if (lvl == null) {
+					lvl = LevelEnum.JUNIOR;
+				}
+				var agent = agentNodes.buildQuestionAgent(lvl, topic);
+				AssistantMessage msg = agent.call("主题：" + topic);
+				Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
+				QuestionItem item = objectMapper.convertValue(map, QuestionItem.class);
+				Map<String, Object> updates = new HashMap<>();
+				updates.put("question", objectMapper.convertValue(item, Map.class));
+				return updates;
 			}));
 		}
 
@@ -96,28 +94,25 @@ public class InterviewGraphBuilder {
 		for (LevelEnum level : LevelEnum.values()) {
 			String nodeId = "ANSWER_AGENT_" + level.name();
 			graph.addNode(nodeId, AsyncNodeAction.node_async(state -> {
-				String sessionId = state.value("sessionId", String.class).orElse("");
-				return NodeLogger.wrap(nodeId, sessionId, () -> {
-					QuestionItem question = state.value("question", Map.class)
-							.map(m -> objectMapper.convertValue(m, QuestionItem.class))
-							.orElse(null);
-					String feedback = state.value("feedback", String.class).orElse(null);
-					Number revNum = state.value("reviseCount", Number.class).orElse(0);
-					int reviseCount = revNum.intValue();
-					LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
-					if (lvl == null) {
-						lvl = LevelEnum.JUNIOR;
-					}
-					var agent = agentNodes.buildAnswerAgent(lvl,
-							question != null ? question.getContent() : "", feedback);
-					AssistantMessage msg = agent.call("问题：" + (question != null ? question.getContent() : ""));
-					Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
-					AnswerItem item = objectMapper.convertValue(map, AnswerItem.class);
-					item.setRevision(reviseCount);
-					Map<String, Object> updates = new HashMap<>();
-					updates.put("answer", objectMapper.convertValue(item, Map.class));
-					return updates;
-				});
+				QuestionItem question = state.value("question", Map.class)
+						.map(m -> objectMapper.convertValue(m, QuestionItem.class))
+						.orElse(null);
+				String feedback = state.value("feedback", String.class).orElse(null);
+				Number revNum = state.value("reviseCount", Number.class).orElse(0);
+				int reviseCount = revNum.intValue();
+				LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
+				if (lvl == null) {
+					lvl = LevelEnum.JUNIOR;
+				}
+				var agent = agentNodes.buildAnswerAgent(lvl,
+						question != null ? question.getContent() : "", feedback);
+				AssistantMessage msg = agent.call("问题：" + (question != null ? question.getContent() : ""));
+				Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
+				AnswerItem item = objectMapper.convertValue(map, AnswerItem.class);
+				item.setRevision(reviseCount);
+				Map<String, Object> updates = new HashMap<>();
+				updates.put("answer", objectMapper.convertValue(item, Map.class));
+				return updates;
 			}));
 		}
 
@@ -125,28 +120,25 @@ public class InterviewGraphBuilder {
 		for (LevelEnum level : LevelEnum.values()) {
 			String nodeId = "REVIEW_AGENT_" + level.name();
 			graph.addNode(nodeId, AsyncNodeAction.node_async(state -> {
-				String sessionId = state.value("sessionId", String.class).orElse("");
-				return NodeLogger.wrap(nodeId, sessionId, () -> {
-					QuestionItem question = state.value("question", Map.class)
-							.map(m -> objectMapper.convertValue(m, QuestionItem.class))
-							.orElse(null);
-					AnswerItem answer = state.value("answer", Map.class)
-							.map(m -> objectMapper.convertValue(m, AnswerItem.class))
-							.orElse(null);
-					LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
-					if (lvl == null) {
-						lvl = LevelEnum.JUNIOR;
-					}
-					var agent = agentNodes.buildReviewAgent(lvl,
-							question != null ? question.getContent() : "",
-							answer != null ? answer.getContent() : "");
-					AssistantMessage msg = agent.call("请复核。");
-					Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
-					ReviewItem item = objectMapper.convertValue(map, ReviewItem.class);
-					Map<String, Object> updates = new HashMap<>();
-					updates.put("review", objectMapper.convertValue(item, Map.class));
-					return updates;
-				});
+				QuestionItem question = state.value("question", Map.class)
+						.map(m -> objectMapper.convertValue(m, QuestionItem.class))
+						.orElse(null);
+				AnswerItem answer = state.value("answer", Map.class)
+						.map(m -> objectMapper.convertValue(m, AnswerItem.class))
+						.orElse(null);
+				LevelEnum lvl = LevelEnum.of(state.value("level", String.class).orElse("JUNIOR"));
+				if (lvl == null) {
+					lvl = LevelEnum.JUNIOR;
+				}
+				var agent = agentNodes.buildReviewAgent(lvl,
+						question != null ? question.getContent() : "",
+						answer != null ? answer.getContent() : "");
+				AssistantMessage msg = agent.call("请复核。");
+				Map<String, Object> map = llmInvoker.parseJsonMap(msg.getText());
+				ReviewItem item = objectMapper.convertValue(map, ReviewItem.class);
+				Map<String, Object> updates = new HashMap<>();
+				updates.put("review", objectMapper.convertValue(item, Map.class));
+				return updates;
 			}));
 		}
 
@@ -236,9 +228,12 @@ public class InterviewGraphBuilder {
 				StateGraph.END, StateGraph.END
 		));
 
+		RedisSaver redisSaver = RedisSaver.builder()
+				.redisson(redissonClient)
+				.build();
 		CompileConfig compileConfig = CompileConfig.builder()
 				.interruptAfter("REVIEW_AGENT_JUNIOR", "REVIEW_AGENT_MID", "REVIEW_AGENT_SENIOR")
-				.saverConfig(SaverConfig.builder().register(new MemorySaver()).build())
+				.saverConfig(SaverConfig.builder().register(redisSaver).build())
 				.build();
 
 		return graph.compile(compileConfig);

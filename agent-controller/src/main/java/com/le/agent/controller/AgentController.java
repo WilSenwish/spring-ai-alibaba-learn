@@ -1,5 +1,6 @@
 package com.le.agent.controller;
 
+import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.le.agent.common.api.ApiResponse;
 import com.le.agent.common.dto.HumanDecisionRequest;
 import com.le.agent.common.dto.QaContent;
@@ -11,12 +12,14 @@ import com.le.agent.service.graph.GraphExecutorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -96,6 +99,34 @@ public class AgentController {
 				this, sessionId, com.le.agent.common.api.TraceContext.get(), latest, latest.getSessionId()));
 		log.info("[AgentController] /email/retry sessionId={}, qaId={}", sessionId, latest.getId());
 		return ApiResponse.success("邮件已重新加入发送队列");
+	}
+
+	/**
+	 * 流式启动新会话 - SSE 推送每个节点的执行结果.
+	 */
+	@PostMapping(value = "/stream/start", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public Flux<NodeOutput> streamStart(@RequestBody StartSessionRequest request) {
+		log.info("[AgentController] /stream/start topic={}, level={}", request.getTopic(), request.getLevel());
+		return graphExecutorService.streamStart(
+				request.getSessionId(),
+				request.getTopic(),
+				request.getLevel(),
+				request.getEmailTo(),
+				request.getEmailRequired());
+	}
+
+	/**
+	 * 流式人工决策 - SSE 推送人工决策后的执行结果.
+	 */
+	@PostMapping(value = "/stream/human", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+	public Flux<NodeOutput> streamHuman(@RequestBody HumanDecisionRequest request) {
+		log.info("[AgentController] /stream/human sessionId={}, runId={}, decision={}",
+				request.getSessionId(), request.getRunId(), request.getDecision());
+		return graphExecutorService.streamHuman(
+				request.getSessionId(),
+				request.getRunId(),
+				request.getDecision(),
+				request.getFeedback());
 	}
 
 	@SuppressWarnings("unused")

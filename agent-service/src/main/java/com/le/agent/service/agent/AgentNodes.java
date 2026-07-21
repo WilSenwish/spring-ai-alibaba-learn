@@ -1,15 +1,21 @@
 package com.le.agent.service.agent;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.Hook;
+import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.le.agent.common.enums.LevelEnum;
 import com.le.agent.service.agent.prompt.SystemPrompts;
+import com.le.agent.service.observability.LoggerHook;
+import com.le.agent.service.observability.ModelLoggingInterceptor;
+import com.le.agent.service.observability.ToolLoggingInterceptor;
 import com.le.agent.service.tool.WebSearchTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -31,6 +37,8 @@ public class AgentNodes {
 				.systemPrompt(String.format(SystemPrompts.questionPrompt(level), topic))
 				.chatClient(chatClientBuilder.build())
 				.outputKey("question")
+				.hooks(Arrays.asList(new LoggerHook()))
+				.interceptors(Arrays.asList(new ModelLoggingInterceptor()))
 				.build();
 	}
 
@@ -41,6 +49,8 @@ public class AgentNodes {
 				.chatClient(chatClientBuilder.build())
 				.methodTools(webSearchTool)
 				.outputKey("answer")
+				.hooks(Arrays.asList(new LoggerHook()))
+				.interceptors(Arrays.asList(new ModelLoggingInterceptor(), new ToolLoggingInterceptor()))
 				.build();
 	}
 
@@ -50,6 +60,8 @@ public class AgentNodes {
 				.systemPrompt(String.format(SystemPrompts.reviewPrompt(level), question, answer))
 				.chatClient(chatClientBuilder.build())
 				.outputKey("review")
+				.hooks(Arrays.asList(new LoggerHook()))
+				.interceptors(Arrays.asList(new ModelLoggingInterceptor()))
 				.build();
 	}
 

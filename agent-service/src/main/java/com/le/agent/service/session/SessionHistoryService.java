@@ -6,11 +6,10 @@ import com.le.agent.common.api.JsonUtils;
 import com.le.agent.common.dto.QaContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.exceptions.JedisException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +25,7 @@ public class SessionHistoryService {
 	private static final TypeReference<List<QaContent>> LIST_TYPE = new TypeReference<>() {
 	};
 
-	private final JedisPool jedisPool;
+	private final RedissonClient redissonClient;
 	private final ObjectMapper objectMapper;
 
 	@Value("${agent.memory.history-prefix:agent:history:}")
@@ -39,34 +38,24 @@ public class SessionHistoryService {
 		return keyPrefix + sessionId;
 	}
 
-	/**
-	 * 追加一条 Q&A.
-	 */
 	public void append(String sessionId, QaContent qa) {
 		List<QaContent> list = get(sessionId);
 		list.add(qa);
-		// 截断
 		if (list.size() > maxSize) {
 			list = new ArrayList<>(list.subList(list.size() - maxSize, list.size()));
 		}
-		try (Jedis jedis = jedisPool.getResource()) {
-			String json = objectMapper.writeValueAsString(list);
-			jedis.set(key(sessionId), json);
-		} catch (RuntimeException | java.io.IOException e) {
+		try {
+			RBucket<List<QaContent>> bucket = redissonClient.getBucket(key(sessionId));
+			bucket.set(list);
+		} catch (RuntimeException e) {
 			log.warn("[SessionHistoryService] append fail, sessionId={}, err={}", sessionId, e.getMessage());
 		}
 	}
 
-	/**
-	 * 获取历史.
-	 */
 	public List<QaContent> get(String sessionId) {
-		try (Jedis jedis = jedisPool.getResource()) {
-			String json = jedis.get(key(sessionId));
-			if (json == null || json.isBlank()) {
-				return new ArrayList<>();
-			}
-			List<QaContent> list = JsonUtils.fromJson(json, LIST_TYPE);
+		try {
+			RBucket<List<QaContent>> bucket = redissonClient.getBucket(key(sessionId));
+			List<QaContent> list = bucket.get();
 			return list == null ? new ArrayList<>() : list;
 		} catch (RuntimeException e) {
 			log.warn("[SessionHistoryService] get fail, sessionId={}, err={}", sessionId, e.getMessage());
@@ -74,13 +63,11 @@ public class SessionHistoryService {
 		}
 	}
 
-	/**
-	 * 清空历史.
-	 */
 	public void clear(String sessionId) {
-		try (Jedis jedis = jedisPool.getResource()) {
-			jedis.del(key(sessionId));
-		} catch (JedisException e) {
+		try {
+			RBucket<List<QaContent>> bucket = redissonClient.getBucket(key(sessionId));
+			bucket.delete();
+		} catch (RuntimeException e) {
 			log.warn("[SessionHistoryService] clear fail, sessionId={}, err={}", sessionId, e.getMessage());
 		}
 	}

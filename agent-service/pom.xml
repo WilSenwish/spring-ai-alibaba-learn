@@ -49,11 +49,11 @@
 			<artifactId>spring-ai-alibaba-agent-framework</artifactId>
 		</dependency>
 
-		<!-- Redis（Jedis 6.0） -->
+		<!-- Redisson（用于 RedisSaver 和 RedisStore） -->
 		<dependency>
-			<groupId>redis.clients</groupId>
-			<artifactId>jedis</artifactId>
-			<version>6.0.0</version>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson</artifactId>
+			<version>3.22.0</version>
 		</dependency>
 
 		<!-- Spring Boot Mail -->
